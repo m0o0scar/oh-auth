@@ -1,18 +1,20 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { encryptUrlSecret } from '@/lib/secret';
 
 type EncryptStatus = 'idle' | 'encrypting';
 
-export default function EncryptPage() {
+function EncryptPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [url, setUrl] = useState(() => searchParams.get('url') ?? '');
-  const [password, setPassword] = useState(() => searchParams.get('password') ?? '');
+  const [password, setPassword] = useState(
+    () => searchParams.get('password') ?? '',
+  );
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<EncryptStatus>('idle');
   const autoHandledRef = useRef(false);
@@ -21,10 +23,14 @@ export default function EncryptPage() {
     status === 'encrypting'
       ? 'badge-info'
       : hasInputs
-        ? 'badge-success'
-        : 'badge-ghost';
+      ? 'badge-success'
+      : 'badge-ghost';
   const statusLabel =
-    status === 'encrypting' ? 'Encrypting' : hasInputs ? 'Ready to encrypt' : 'Add URL & password';
+    status === 'encrypting'
+      ? 'Encrypting'
+      : hasInputs
+      ? 'Ready to encrypt'
+      : 'Add URL & password';
 
   const handleEncrypt = useCallback(
     async (providedUrl?: string, providedPassword?: string): Promise<void> => {
@@ -85,80 +91,41 @@ export default function EncryptPage() {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="badge badge-primary">/secret/encrypt</span>
-                  <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
+                  <span className={`badge ${statusBadgeClass}`}>
+                    {statusLabel}
+                  </span>
                 </div>
-                <h1 className="card-title text-3xl">Protect a URL with a password</h1>
+                <h1 className="card-title text-3xl">
+                  Protect a URL with a password
+                </h1>
                 <p className="max-w-2xl text-base-content/70">
-                  Enter a URL and password to generate an encrypted secret. You will be redirected
-                  to the decrypt page with that secret ready to share.
+                  Enter a URL and password to generate an encrypted secret. You
+                  will be redirected to the decrypt page with that secret ready
+                  to share.
                 </p>
               </div>
               <div className="flex flex-col gap-2 rounded-box border border-base-300/70 bg-base-100 px-4 py-3 text-sm text-base-content/70">
-                <p className="font-semibold text-base-content">Redirect-first flow</p>
+                <p className="font-semibold text-base-content">
+                  Redirect-first flow
+                </p>
                 <p className="leading-relaxed">
-                  After encryption we immediately send you to <code>/secret/decrypt</code> with the
-                  secret prefilled.
+                  After encryption we immediately send you to{' '}
+                  <code>/secret/decrypt</code> with the secret prefilled.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr,1.15fr]">
-            <section className="card border border-base-300/70 bg-base-100 shadow">
-              <div className="card-body space-y-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <span className="badge badge-outline badge-primary">Guide</span>
-                  <span className="text-base-content">Create & share safely</span>
-                </div>
-                <ol className="space-y-3 text-sm leading-relaxed text-base-content/80">
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">1</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Provide the URL</p>
-                      <p>Only the exact string you submit will be encrypted.</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">2</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Pick a strong password</p>
-                      <p>Use a phrase you can share outside the URL.</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">3</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Share the secret</p>
-                      <p>We redirect with the encrypted secret so you can copy it immediately.</p>
-                    </div>
-                  </li>
-                </ol>
-                <div className="divider">Automation</div>
-                <ul className="space-y-2 text-sm text-base-content/70">
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>
-                      Prefill with <code>?url=</code> and <code>?password=</code> to auto-encrypt.
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>Avoid sharing the password in the URL when possible.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>Regenerate a new secret if the link was exposed.</span>
-                  </li>
-                </ul>
-              </div>
-            </section>
-
             <section className="card border border-base-300/70 bg-base-100/95 shadow-xl">
               <div className="card-body space-y-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="badge badge-outline badge-primary">Input</span>
+                  <span className="badge badge-outline badge-primary">
+                    Input
+                  </span>
                   <p className="text-sm text-base-content/70">
-                    We never send your URL or password to a server. Encryption runs locally.
+                    We never send your URL or password to a server. Encryption
+                    runs locally.
                   </p>
                 </div>
 
@@ -178,13 +145,17 @@ export default function EncryptPage() {
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="form-control w-full">
                       <div className="label">
-                        <span className="label-text font-semibold">URL to protect</span>
+                        <span className="label-text font-semibold">
+                          URL to protect
+                        </span>
                         <span className="label-text-alt text-xs text-base-content/60">
                           Accepts query param &quot;url&quot;
                         </span>
                       </div>
                       <label className="input input-bordered flex items-center gap-2">
-                        <span className="badge badge-outline badge-sm text-xs">URL</span>
+                        <span className="badge badge-outline badge-sm text-xs">
+                          URL
+                        </span>
                         <input
                           type="url"
                           className="grow"
@@ -201,13 +172,17 @@ export default function EncryptPage() {
 
                     <label className="form-control w-full">
                       <div className="label">
-                        <span className="label-text font-semibold">Password</span>
+                        <span className="label-text font-semibold">
+                          Password
+                        </span>
                         <span className="label-text-alt text-xs text-base-content/60">
                           Accepts query param &quot;password&quot;
                         </span>
                       </div>
                       <label className="input input-bordered flex items-center gap-2">
-                        <span className="badge badge-outline badge-sm text-xs">Secret</span>
+                        <span className="badge badge-outline badge-sm text-xs">
+                          Secret
+                        </span>
                         <input
                           type="password"
                           className="grow"
@@ -225,15 +200,89 @@ export default function EncryptPage() {
 
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <p className="text-sm text-base-content/70">
-                      Tip: share the password separately from the URL for better security.
+                      Tip: share the password separately from the URL for better
+                      security.
                     </p>
                     <div className="card-actions justify-end">
-                      <button type="submit" className="btn btn-primary" disabled={status === 'encrypting'}>
-                        {status === 'encrypting' ? 'Encrypting...' : 'Encrypt and redirect'}
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={status === 'encrypting'}
+                      >
+                        {status === 'encrypting'
+                          ? 'Encrypting...'
+                          : 'Encrypt and redirect'}
                       </button>
                     </div>
                   </div>
                 </form>
+              </div>
+            </section>
+
+            <section className="card border border-base-300/70 bg-base-100 shadow">
+              <div className="card-body space-y-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <span className="badge badge-outline badge-primary">
+                    Guide
+                  </span>
+                  <span className="text-base-content">
+                    Create & share safely
+                  </span>
+                </div>
+                <ol className="space-y-3 text-sm leading-relaxed text-base-content/80">
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">1</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Provide the URL
+                      </p>
+                      <p>Only the exact string you submit will be encrypted.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">2</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Pick a strong password
+                      </p>
+                      <p>Use a phrase you can share outside the URL.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">3</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Share the secret
+                      </p>
+                      <p>
+                        We redirect with the encrypted secret so you can copy it
+                        immediately.
+                      </p>
+                    </div>
+                  </li>
+                </ol>
+                <div className="divider">Automation</div>
+                <ul className="space-y-2 text-sm text-base-content/70">
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>
+                      Prefill with <code>?url=</code> and{' '}
+                      <code>?password=</code> to auto-encrypt.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>
+                      Avoid sharing the password in the URL when possible.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>
+                      Regenerate a new secret if the link was exposed.
+                    </span>
+                  </li>
+                </ul>
               </div>
             </section>
           </div>
@@ -243,3 +292,23 @@ export default function EncryptPage() {
   );
 }
 
+function EncryptPageFallback() {
+  return (
+    <main className="min-h-screen bg-base-200 text-base-content">
+      <div className="flex min-h-screen items-center justify-center">
+        <span
+          className="loading loading-spinner loading-lg text-primary"
+          aria-label="Loading"
+        />
+      </div>
+    </main>
+  );
+}
+
+export default function EncryptPage() {
+  return (
+    <Suspense fallback={<EncryptPageFallback />}>
+      <EncryptPageContent />
+    </Suspense>
+  );
+}

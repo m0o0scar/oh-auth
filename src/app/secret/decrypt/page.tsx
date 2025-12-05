@@ -1,14 +1,14 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { decryptUrlSecret } from '@/lib/secret';
 
 type DecryptStatus = 'idle' | 'decrypting';
 
-export default function DecryptPage() {
+function DecryptPageContent() {
   const searchParams = useSearchParams();
   const [secret, setSecret] = useState(() => searchParams.get('secret') ?? '');
   const [password, setPassword] = useState('');
@@ -32,14 +32,14 @@ export default function DecryptPage() {
     status === 'decrypting'
       ? 'badge-warning'
       : missingSecret
-        ? 'badge-ghost'
-        : 'badge-success';
+      ? 'badge-ghost'
+      : 'badge-success';
   const statusLabel =
     status === 'decrypting'
       ? 'Decrypting'
       : missingSecret
-        ? 'Awaiting secret'
-        : 'Ready to decrypt';
+      ? 'Awaiting secret'
+      : 'Ready to decrypt';
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,84 +87,44 @@ export default function DecryptPage() {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="badge badge-primary">/secret/decrypt</span>
-                  <span className={`badge ${statusBadgeClass}`}>{statusLabel}</span>
+                  <span className={`badge ${statusBadgeClass}`}>
+                    {statusLabel}
+                  </span>
                 </div>
                 <h1 className="card-title text-3xl">Decrypt a protected URL</h1>
                 <p className="max-w-2xl text-base-content/70">
-                  Paste the encrypted secret and the password used during encryption to reveal
-                  the original destination.
+                  Paste the encrypted secret and the password used during
+                  encryption to reveal the original destination.
                 </p>
               </div>
               <div className="flex flex-col gap-2 rounded-box border border-base-300/70 bg-base-100 px-4 py-3 text-sm text-base-content/70">
                 <p className="font-semibold text-base-content">Runs locally</p>
                 <p className="leading-relaxed">
-                  AES-GCM decryption happens in your browser; nothing is sent to a server.
+                  AES-GCM decryption happens in your browser; nothing is sent to
+                  a server.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr,1.15fr]">
-            <section className="card border border-base-300/70 bg-base-100 shadow">
-              <div className="card-body space-y-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <span className="badge badge-outline badge-primary">Guide</span>
-                  <span className="text-base-content">Decrypt in three steps</span>
-                </div>
-                <ol className="space-y-3 text-sm leading-relaxed text-base-content/80">
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">1</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Paste or pass the secret</p>
-                      <p>Use the textarea or provide the <code>secret</code> query param.</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">2</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Enter the shared password</p>
-                      <p>It must match the one used during encryption.</p>
-                    </div>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="badge badge-sm badge-primary">3</span>
-                    <div>
-                      <p className="font-semibold text-base-content">Reveal and follow the URL</p>
-                      <p>We render the decrypted URL for you to open safely.</p>
-                    </div>
-                  </li>
-                </ol>
-                <div className="divider">Tips</div>
-                <ul className="space-y-2 text-sm text-base-content/70">
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>Secrets remain client-side; refresh to clear state.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>Keep the password out of the URL when sharing.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="badge badge-ghost badge-sm">•</span>
-                    <span>Longer passwords increase resistance to guessing.</span>
-                  </li>
-                </ul>
-              </div>
-            </section>
-
             <section className="card border border-base-300/70 bg-base-100/95 shadow-xl">
               <div className="card-body space-y-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="badge badge-outline badge-primary">Input</span>
+                  <span className="badge badge-outline badge-primary">
+                    Input
+                  </span>
                   <p className="text-sm text-base-content/70">
-                    We keep the encrypted secret out of view by default. Toggle if you need to edit.
+                    We keep the encrypted secret out of view by default. Toggle
+                    if you need to edit.
                   </p>
                 </div>
 
                 {missingSecret ? (
                   <div className="alert alert-warning">
                     <span>
-                      A <code>secret</code> query parameter is required before decryption can begin.
+                      A <code>secret</code> query parameter is required before
+                      decryption can begin.
                     </span>
                   </div>
                 ) : null}
@@ -179,7 +139,9 @@ export default function DecryptPage() {
                   <div className="alert alert-success">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-1">
-                        <p className="font-semibold text-base-content">Decryption successful</p>
+                        <p className="font-semibold text-base-content">
+                          Decryption successful
+                        </p>
                         <a
                           className="link link-primary break-all"
                           href={resolvedUrl}
@@ -206,8 +168,12 @@ export default function DecryptPage() {
                     <div className="flex h-full flex-col gap-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex flex-col">
-                          <span className="text-sm font-semibold text-base-content">Encrypted secret</span>
-                          <span className="text-xs text-base-content/60">Accepts query param &quot;secret&quot;</span>
+                          <span className="text-sm font-semibold text-base-content">
+                            Encrypted secret
+                          </span>
+                          <span className="text-xs text-base-content/60">
+                            Accepts query param &quot;secret&quot;
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -216,7 +182,11 @@ export default function DecryptPage() {
                             setShowSecretInput((prev) => !prev);
                           }}
                         >
-                          {secretInputOpen ? 'Hide secret' : secret ? 'Edit secret' : 'Paste secret'}
+                          {secretInputOpen
+                            ? 'Hide secret'
+                            : secret
+                            ? 'Edit secret'
+                            : 'Paste secret'}
                         </button>
                       </div>
 
@@ -246,12 +216,18 @@ export default function DecryptPage() {
                     <div className="flex h-full flex-col gap-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex flex-col">
-                          <span className="text-sm font-semibold text-base-content">Password</span>
-                          <span className="text-xs text-base-content/60">Only you know this</span>
+                          <span className="text-sm font-semibold text-base-content">
+                            Password
+                          </span>
+                          <span className="text-xs text-base-content/60">
+                            Only you know this
+                          </span>
                         </div>
                       </div>
                       <label className="input input-bordered flex items-center gap-2">
-                        <span className="badge badge-outline badge-sm text-xs">PW</span>
+                        <span className="badge badge-outline badge-sm text-xs">
+                          PW
+                        </span>
                         <input
                           type="password"
                           className="grow"
@@ -269,10 +245,15 @@ export default function DecryptPage() {
 
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <p className="text-sm text-base-content/70">
-                      For safety, avoid keeping the secret visible after pasting unless you need to edit it.
+                      For safety, avoid keeping the secret visible after pasting
+                      unless you need to edit it.
                     </p>
                     <div className="card-actions justify-end">
-                      <button type="submit" className="btn btn-primary" disabled={status === 'decrypting'}>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={status === 'decrypting'}
+                      >
                         {status === 'decrypting' ? 'Decrypting...' : 'Decrypt'}
                       </button>
                     </div>
@@ -280,9 +261,94 @@ export default function DecryptPage() {
                 </form>
               </div>
             </section>
+
+            <section className="card border border-base-300/70 bg-base-100 shadow">
+              <div className="card-body space-y-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                  <span className="badge badge-outline badge-primary">
+                    Guide
+                  </span>
+                  <span className="text-base-content">
+                    Decrypt in three steps
+                  </span>
+                </div>
+                <ol className="space-y-3 text-sm leading-relaxed text-base-content/80">
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">1</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Paste or pass the secret
+                      </p>
+                      <p>
+                        Use the textarea or provide the <code>secret</code>{' '}
+                        query param.
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">2</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Enter the shared password
+                      </p>
+                      <p>It must match the one used during encryption.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="badge badge-sm badge-primary">3</span>
+                    <div>
+                      <p className="font-semibold text-base-content">
+                        Reveal and follow the URL
+                      </p>
+                      <p>We render the decrypted URL for you to open safely.</p>
+                    </div>
+                  </li>
+                </ol>
+                <div className="divider">Tips</div>
+                <ul className="space-y-2 text-sm text-base-content/70">
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>
+                      Secrets remain client-side; refresh to clear state.
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>Keep the password out of the URL when sharing.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="badge badge-ghost badge-sm">•</span>
+                    <span>
+                      Longer passwords increase resistance to guessing.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </section>
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+function DecryptPageFallback() {
+  return (
+    <main className="min-h-screen bg-base-200 text-base-content">
+      <div className="flex min-h-screen items-center justify-center">
+        <span
+          className="loading loading-spinner loading-lg text-primary"
+          aria-label="Loading"
+        />
+      </div>
+    </main>
+  );
+}
+
+export default function DecryptPage() {
+  return (
+    <Suspense fallback={<DecryptPageFallback />}>
+      <DecryptPageContent />
+    </Suspense>
   );
 }
