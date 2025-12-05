@@ -41,3 +41,17 @@ The callback endpoint `/auth/{provider}/callback` exchanges the `code` for token
 - Use real OAuth credentials for both providers.
 - Start the app, click a provider, complete the provider consent screen, and confirm the browser returns to the callback with a success message.
 - Check the server console for the received access/refresh tokens.
+
+## Secret URL encryption
+
+- Browser flow: visit `/secret/encrypt` with optional `url` and `password` query params to auto-encrypt and redirect to `/secret/decrypt?secret=...`.
+- Programmatic flow: send JSON to `POST /secret/encrypt` and receive the decrypt link in JSON.
+
+Example:
+
+```bash
+curl -s -X POST http://localhost:3000/secret/encrypt \
+  -H "content-type: application/json" \
+  -d '{"url":"https://example.com/private","password":"p@ssw0rd"}'
+# => {"url":"http://localhost:3000/secret/decrypt?secret=..."}
+```
