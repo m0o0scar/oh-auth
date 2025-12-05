@@ -93,31 +93,52 @@ function renderCardPage(
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title}</title>
     <style>
-      :root { color-scheme: light; }
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --fg: #0f172a;
+        --card-bg: #ffffff;
+        --card-border: #e2e8f0;
+        --card-shadow: 0 24px 60px -25px rgba(15, 23, 42, 0.45);
+        --muted: #334155;
+        --link: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+          --bg: #0b1220;
+          --fg: #e2e8f0;
+          --card-bg: #0f172a;
+          --card-border: #1e293b;
+          --card-shadow: 0 24px 60px -25px rgba(15, 23, 42, 0.75);
+          --muted: #cbd5e1;
+          --link: #93c5fd;
+        }
+      }
       body {
         margin: 0;
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #ffffff;
+        background: var(--bg);
         font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-        color: #0f172a;
+        color: var(--fg);
         padding: 24px;
       }
       .card {
         width: min(720px, 100%);
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
         border-radius: 16px;
         padding: 32px 28px;
-        box-shadow: 0 24px 60px -25px rgba(15, 23, 42, 0.45);
+        box-shadow: var(--card-shadow);
         text-align: center;
       }
       h1 {
         margin: 0 0 20px;
         font-size: 26px;
-        color: #0f172a;
+        color: var(--fg);
       }
       .image-wrap {
         display: flex;
@@ -134,14 +155,14 @@ function renderCardPage(
         margin: 0;
         font-size: 16px;
         line-height: 1.6;
-        color: #334155;
+        color: var(--muted);
       }
       .home {
         margin-top: 18px;
         font-size: 14px;
       }
       .home a {
-        color: #2563eb;
+        color: var(--link);
         text-decoration: none;
         font-weight: 600;
       }

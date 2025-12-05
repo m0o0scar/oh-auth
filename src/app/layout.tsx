@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -12,6 +13,24 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+const themeInitializer = `
+  (() => {
+    const root = document.documentElement;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const apply = (isDark) => {
+      const theme = isDark ? 'dark' : 'light';
+      if (root.dataset.theme !== theme) {
+        root.dataset.theme = theme;
+      }
+      root.style.colorScheme = theme;
+    };
+
+    apply(media.matches);
+    media.addEventListener('change', (event) => apply(event.matches));
+  })();
+`;
+
 export const metadata: Metadata = {
   title: 'Oh, auth!',
   description:
@@ -24,7 +43,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="light">
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <head>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeInitializer }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
