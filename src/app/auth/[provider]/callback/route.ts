@@ -6,10 +6,14 @@ import {
   loadProviderEnv,
 } from '@/lib/oauth';
 
-type RouteParams = {
-  params?: {
-    provider?: string;
-  };
+type RouteContext = {
+  params: Promise<{
+    provider: string;
+  }>;
+};
+
+type ResolvedParams = {
+  provider?: string;
 };
 
 type ParsedState = {
@@ -51,10 +55,7 @@ function parseState(state: string | null): ParsedState {
   return {};
 }
 
-function resolveProviderId(
-  request: NextRequest,
-  params?: RouteParams['params'],
-) {
+function resolveProviderId(request: NextRequest, params?: ResolvedParams) {
   const fromParams = params?.provider;
   if (fromParams) return fromParams;
   const segments = request.nextUrl.pathname.split('/').filter(Boolean);
@@ -166,7 +167,8 @@ function renderCardPage(
   });
 }
 
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export async function GET(request: NextRequest, context: RouteContext) {
+  const params = await context.params;
   const providerId = resolveProviderId(request, params);
   const provider = providerId ? getProviderConfig(providerId) : null;
 
@@ -286,7 +288,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!extensionId) {
       return renderCardPage(
         'Authentication complete',
-        'Tokens received and logged to the server console. You can close this page now.',
+        'You can close this page now.',
         { providerId, outcome: 'success' },
       );
     }

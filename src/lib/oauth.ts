@@ -83,9 +83,9 @@ export function loadProviderEnv(providerId: ProviderId): EnvResult {
   return {
     ok: true,
     env: {
-      clientId,
-      clientSecret,
-      redirectUri,
+      clientId: clientId!,
+      clientSecret: clientSecret!,
+      redirectUri: redirectUri!,
     },
   };
 }
