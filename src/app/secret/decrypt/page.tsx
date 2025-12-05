@@ -145,7 +145,7 @@ function DecryptPageContent() {
                         <a
                           className="link link-primary break-all"
                           href={resolvedUrl}
-                          target="_blank"
+                          target="_self"
                           rel="noreferrer"
                         >
                           {resolvedUrl}
@@ -154,7 +154,7 @@ function DecryptPageContent() {
                       <a
                         className="btn btn-success btn-sm"
                         href={resolvedUrl}
-                        target="_blank"
+                        target="_self"
                         rel="noreferrer"
                       >
                         Open URL
