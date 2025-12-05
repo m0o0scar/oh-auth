@@ -23,6 +23,12 @@ The system SHALL provide `/secret/encrypt` to produce an encrypted secret for a 
 - **THEN** the system shows a validation error message
 - **AND** does not attempt encryption or redirect
 
+#### Scenario: Programmatic POST encryption returns decrypt URL
+- **GIVEN** a POST request to `/secret/encrypt` with a JSON body containing `url` and `password`
+- **WHEN** both values are provided
+- **THEN** the system encrypts the url using the password into an opaque, URL-safe secret string
+- **AND** responds with a JSON body that includes a `url` field pointing to `/secret/decrypt?secret={secret}` on the same host
+
 ### Requirement: Password-based URL decryption flow
 The system SHALL provide `/secret/decrypt` that accepts an encrypted secret query parameter, prompts for a password, and attempts to decrypt to the original URL.
 
