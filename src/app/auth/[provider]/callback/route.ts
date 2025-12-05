@@ -12,6 +12,26 @@ type RouteParams = {
   };
 };
 
+type ParsedState = {
+  extensionId?: string;
+};
+
+function parseState(state: string | null): ParsedState {
+  if (!state) return {};
+  try {
+    const parsed = JSON.parse(state);
+    if (parsed && typeof parsed === 'object' && 'extensionId' in parsed) {
+      const extensionId = (parsed as Record<string, unknown>).extensionId;
+      if (typeof extensionId === 'string' && extensionId.trim().length > 0) {
+        return { extensionId };
+      }
+    }
+  } catch (error) {
+    console.error('[callback] Failed to parse state', error);
+  }
+  return {};
+}
+
 function resolveProviderId(
   request: NextRequest,
   params?: RouteParams['params'],
@@ -25,12 +45,13 @@ function resolveProviderId(
 function renderPage(
   title: string,
   body: string,
-  options?: { status?: number; showHomeLink?: boolean },
+  options?: { status?: number; showHomeLink?: boolean; script?: string },
 ) {
   const showHomeLink = options?.showHomeLink ?? false;
   const homeLink = showHomeLink
     ? '<p style="margin-top:16px;"><a href="/" style="color:#2563eb;">Return home</a></p>'
     : '';
+  const script = options?.script ? `<script>${options.script}</script>` : '';
 
   const html = `<!doctype html>
 <html lang="en">
@@ -51,6 +72,7 @@ function renderPage(
       <p>${body}</p>
       ${homeLink}
     </div>
+    ${script}
   </body>
 </html>`;
 
@@ -92,6 +114,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   const searchParams = request.nextUrl.searchParams;
   const providerError = searchParams.get('error');
   const code = searchParams.get('code');
+  const stateParam = searchParams.get('state');
+  const state = parseState(stateParam);
 
   if (providerError) {
     console.error(
@@ -119,9 +143,77 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const tokens = await exchangeCodeForTokens(provider, envResult.env, code);
     console.log(`[callback] Tokens received for ${provider.id}`, tokens);
 
+    const tokenObject =
+      tokens && typeof tokens === 'object'
+        ? (tokens as Record<string, unknown>)
+        : null;
+    const tokenStatus =
+      tokenObject && typeof tokenObject.status === 'number'
+        ? tokenObject.status
+        : null;
+    const tokenErrorMessage =
+      tokenObject && typeof tokenObject.errorMessage === 'string'
+        ? tokenObject.errorMessage
+        : tokenObject && typeof tokenObject.error === 'string'
+        ? (tokenObject.error as string)
+        : null;
+    const tokenFailed =
+      (tokenObject && tokenObject.result === false) ||
+      (tokenStatus !== null && tokenStatus >= 400);
+
+    if (tokenFailed || tokenErrorMessage) {
+      const message =
+        tokenErrorMessage ??
+        'The provider returned an error while exchanging the code for tokens.';
+      console.error(
+        `[callback] Token exchange returned an error payload for ${provider.id}`,
+        tokens,
+      );
+      const isDev = process.env.NODE_ENV !== 'production';
+      return renderPage('Token exchange failed', message, {
+        status: tokenStatus ?? 400,
+        showHomeLink: isDev,
+      });
+    }
+
+    const extensionId = state.extensionId;
+    if (!extensionId) {
+      return renderPage(
+        'Authentication complete',
+        'Tokens received and logged to the server console. You can close this page now.',
+      );
+    }
+
+    const tokenPayload =
+      tokens && typeof tokens === 'object'
+        ? {
+            access_token: (tokens as Record<string, unknown>).access_token,
+            refresh_token: (tokens as Record<string, unknown>).refresh_token,
+            expires_in: (tokens as Record<string, unknown>).expires_in,
+          }
+        : {};
+
+    const script = `
+      (() => {
+        const payload = ${JSON.stringify({
+          type: 'oauth_success',
+          provider: provider.id,
+          tokens: tokenPayload,
+        })};
+        const extensionId = ${JSON.stringify(extensionId)};
+        const statusEl = document.getElementById('status');
+        if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+          if (statusEl) statusEl.textContent = 'Chrome runtime not available. Please ensure the extension is installed and this page was opened from it.';
+          return;
+        }
+        chrome.runtime.sendMessage(extensionId, payload, {});
+      })();
+    `;
+
     return renderPage(
       'Authentication complete',
-      'Tokens received and logged to the server console. You can close this page now.',
+      'Authentication complete. You can close this page now.<span id="status"></span>',
+      { script },
     );
   } catch (error) {
     console.error(`[callback] Token exchange failed for ${provider.id}`, error);

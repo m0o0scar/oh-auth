@@ -1,17 +1,4 @@
-# oauth2-login Specification
-
-## Purpose
-TBD - created by archiving change add-oauth2-login. Update Purpose after archive.
-## Requirements
-### Requirement: OAuth2 Provider Listing
-
-The system SHALL expose `/` that lists supported OAuth2 providers (Google and Raindrop) and links to start authentication for each.
-
-#### Scenario: Home lists providers
-
-- **WHEN** a client requests `/`
-- **THEN** the response includes entries for Google and Raindrop
-- **AND** each entry links to `/auth/google` or `/auth/raindrop` respectively
+## MODIFIED Requirements
 
 ### Requirement: Start OAuth2 Authorization
 
@@ -59,14 +46,3 @@ The system SHALL process `/auth/{provider}/callback` by exchanging the authoriza
 - **WHEN** the callback is invoked without `code` or the provider returns an error
 - **THEN** the system logs the error details
 - **AND** responds with an error message without attempting token exchange
-
-### Requirement: Provider Credentials From Environment
-
-The system SHALL read OAuth2 credentials for each provider from `.env` and block flows when required values are absent.
-
-#### Scenario: Missing credentials
-
-- **WHEN** required environment variables for a provider are not set (client id, secret, redirect URI)
-- **THEN** the system logs which variables are missing
-- **AND** related auth routes return an error response instead of redirecting
-

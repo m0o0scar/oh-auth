@@ -49,7 +49,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     );
   }
 
-  const state = crypto.randomUUID();
+  const providedState = request.nextUrl.searchParams.get('state');
+  const state = providedState ?? crypto.randomUUID();
   const authUrl = buildAuthorizationUrl(
     provider,
     envResult.env,
