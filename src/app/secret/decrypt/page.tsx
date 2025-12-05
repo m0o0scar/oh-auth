@@ -1,7 +1,7 @@
 'use client';
 
 import type { FormEvent } from 'react';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { decryptUrlSecret } from '@/lib/secret';
@@ -16,6 +16,7 @@ function DecryptPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [showSecretInput, setShowSecretInput] = useState(false);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const param = searchParams.get('secret');
@@ -25,6 +26,10 @@ function DecryptPageContent() {
       setResolvedUrl(null);
     }
   }, [searchParams, secret]);
+
+  useEffect(() => {
+    passwordInputRef.current?.focus();
+  }, []);
 
   const missingSecret = secret.trim().length === 0;
   const secretInputOpen = missingSecret || showSecretInput;
@@ -233,6 +238,7 @@ function DecryptPageContent() {
                           className="grow"
                           placeholder="Enter password used to encrypt"
                           value={password}
+                          ref={passwordInputRef}
                           onChange={(event) => {
                             setPassword(event.target.value);
                             setError(null);
