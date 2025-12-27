@@ -96,7 +96,8 @@ export function buildAuthorizationUrl(
   state: string,
   request?: NextRequest,
 ): string {
-  const scope = request?.nextUrl.searchParams.get('scope') ?? provider.scope;
+  const extraScope = request?.nextUrl.searchParams.get('scope') ?? '';
+  const scope = `${provider.scope} ${extraScope}`;
   const showToken = request?.nextUrl.searchParams.get('show_token');
 
   let finalState = state;

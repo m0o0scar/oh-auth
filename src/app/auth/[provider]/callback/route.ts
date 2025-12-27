@@ -101,17 +101,29 @@ function renderCardPage(
   let output = '';
   if (token) {
     const tokenJson = JSON.stringify(token, null, 2);
+    // Mask sensitive values in the token JSON
+    const maskedJson = tokenJson.replace(
+      /("(?:access_token|refresh_token|id_token|token)"\s*:\s*")([^"]+)(")/g,
+      '$1••••••••••••••••••••$3'
+    );
     output = `<div class="output">
     <button class="copy-btn" onclick="copyToClipboard()">Copy</button>
-    <pre><code>${tokenJson}</code></pre>
+    <pre><code id="token-display">${maskedJson}</code></pre>
+    <pre id="token-actual" style="display: none;">${tokenJson}</pre>
 </div>
 <script>
 function copyToClipboard() {
-  const text = ${JSON.stringify(tokenJson)};
+  const text = document.getElementById('token-actual').textContent;
   navigator.clipboard.writeText(text).then(() => {
-    alert('Copied to clipboard');
+    const btn = document.querySelector('.copy-btn');
+    const originalText = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.textContent = originalText;
+    }, 2000);
   }).catch(err => {
     console.error('Failed to copy: ', err);
+    alert('Failed to copy to clipboard');
   });
 }
 </script>
