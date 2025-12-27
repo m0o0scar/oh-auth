@@ -52,9 +52,22 @@ export default function Home() {
                 <h2 className="card-title">{provider.name}</h2>
                 <p>{provider.description}</p>
                 <div className="card-actions items-center justify-between">
-                  <a className="btn btn-primary" href={`/auth/${provider.id}`}>
-                    Start auth
-                  </a>
+                  <div className="flex gap-2">
+                    <a
+                      className="btn btn-primary"
+                      href={`/auth/${provider.id}`}
+                    >
+                      Start auth
+                    </a>
+                    {provider.id === 'google' ? (
+                      <a
+                        className="btn btn-secondary"
+                        href="/auth/google?scope=https://www.googleapis.com/auth/calendar&show_token=true"
+                      >
+                        Test Calendar Scope
+                      </a>
+                    ) : null}
+                  </div>
                   <a
                     className="link link-secondary"
                     href={provider.docs}
