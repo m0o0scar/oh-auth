@@ -97,12 +97,32 @@ export function buildAuthorizationUrl(
   request?: NextRequest,
 ): string {
   const scope = request?.nextUrl.searchParams.get('scope') ?? provider.scope;
+  const showToken = request?.nextUrl.searchParams.get('show_token');
+
+  let finalState = state;
+  if (showToken) {
+    let stateObj: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(state);
+      if (typeof parsed === 'object' && parsed !== null) {
+        stateObj = parsed;
+      }
+    } catch (e) {
+      // not a json. Maybe it's a random UUID.
+      if (state) {
+        stateObj.originalState = state;
+      }
+    }
+    stateObj.show_token = true;
+    finalState = JSON.stringify(stateObj);
+  }
+
   const url = new URL(provider.authorizationUrl);
   url.searchParams.set('client_id', env.clientId);
   url.searchParams.set('redirect_uri', env.redirectUri);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', scope);
-  url.searchParams.set('state', state);
+  url.searchParams.set('state', finalState);
 
   Object.entries(provider.authParams ?? {}).forEach(([key, value]) => {
     url.searchParams.set(key, value);

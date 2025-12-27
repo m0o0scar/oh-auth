@@ -18,6 +18,7 @@ type ResolvedParams = {
 
 type ParsedState = {
   extensionId?: string;
+  show_token?: boolean;
 };
 
 type ProviderOutcome = 'success' | 'failure' | 'unknown';
@@ -43,11 +44,20 @@ function parseState(state: string | null): ParsedState {
   if (!state) return {};
   try {
     const parsed = JSON.parse(state);
-    if (parsed && typeof parsed === 'object' && 'extensionId' in parsed) {
-      const extensionId = (parsed as Record<string, unknown>).extensionId;
-      if (typeof extensionId === 'string' && extensionId.trim().length > 0) {
-        return { extensionId };
+    if (parsed && typeof parsed === 'object') {
+      const result: ParsedState = {};
+      if ('extensionId' in parsed) {
+        const extensionId = (parsed as Record<string, unknown>).extensionId;
+        if (typeof extensionId === 'string' && extensionId.trim().length > 0) {
+          result.extensionId = extensionId;
+        }
       }
+      if ('show_token' in parsed) {
+        result.show_token = Boolean(
+          (parsed as Record<string, unknown>).show_token,
+        );
+      }
+      return result;
     }
   } catch (error) {
     console.error('[callback] Failed to parse state', error);
@@ -71,6 +81,7 @@ function renderCardPage(
     outcome?: ProviderOutcome;
     showHomeLink?: boolean;
     script?: string;
+    token?: unknown;
   } = {},
 ) {
   const {
@@ -79,12 +90,33 @@ function renderCardPage(
     outcome = 'unknown',
     showHomeLink = false,
     script,
+    token,
   } = options;
   const imageSrc = getProviderResultImage(providerId, outcome);
   const homeLink = showHomeLink
     ? '<p class="home"><a href="/">Return home</a></p>'
     : '';
   const scriptTag = script ? `<script>${script}</script>` : '';
+
+  let output = '';
+  if (token) {
+    const tokenJson = JSON.stringify(token, null, 2);
+    output = `<div class="output">
+    <button class="copy-btn" onclick="copyToClipboard()">Copy</button>
+    <pre><code>${tokenJson}</code></pre>
+</div>
+<script>
+function copyToClipboard() {
+  const text = ${JSON.stringify(tokenJson)};
+  navigator.clipboard.writeText(text).then(() => {
+    alert('Copied to clipboard');
+  }).catch(err => {
+    console.error('Failed to copy: ', err);
+  });
+}
+</script>
+`;
+  }
 
   const html = `<!doctype html>
 <html lang="en">
@@ -167,6 +199,29 @@ function renderCardPage(
         font-weight: 600;
       }
       .home a:hover { text-decoration: underline; }
+      .output {
+        margin-top: 20px;
+        text-align: left;
+        position: relative;
+      }
+      .copy-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 5px 10px;
+        border-radius: 5px;
+        border: 1px solid var(--card-border);
+        background: var(--card-bg);
+        color: var(--fg);
+        cursor: pointer;
+      }
+      pre {
+        background: var(--bg);
+        border: 1px solid var(--card-border);
+        border-radius: 5px;
+        padding: 10px;
+        overflow-x: auto;
+      }
     </style>
   </head>
   <body>
@@ -176,6 +231,7 @@ function renderCardPage(
         <img src="${imageSrc}" alt="${title}" />
       </div>
       <div class="message">${message}</div>
+      ${output}
       ${homeLink}
     </div>
     ${scriptTag}
@@ -307,6 +363,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     const extensionId = state.extensionId;
     if (!extensionId) {
+      const showToken = state.show_token;
+      if (showToken) {
+        return renderCardPage(
+          'Authentication complete',
+          'You can close this page now.',
+          { providerId, outcome: 'success', token: tokens },
+        );
+      }
       return renderCardPage(
         'Authentication complete',
         'You can close this page now.',
