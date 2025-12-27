@@ -96,11 +96,12 @@ export function buildAuthorizationUrl(
   state: string,
   request?: NextRequest,
 ): string {
+  const scope = request?.nextUrl.searchParams.get('scope') ?? provider.scope;
   const url = new URL(provider.authorizationUrl);
   url.searchParams.set('client_id', env.clientId);
   url.searchParams.set('redirect_uri', env.redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', provider.scope);
+  url.searchParams.set('scope', scope);
   url.searchParams.set('state', state);
 
   Object.entries(provider.authParams ?? {}).forEach(([key, value]) => {
