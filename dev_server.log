@@ -12,6 +12,7 @@ This information is used to shape Next.js' roadmap and prioritize features.
 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
 https://nextjs.org/telemetry
 
- ✓ Ready in 1170ms
-[auth] Missing credentials for google: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
- GET /auth/google?show_token=true 500 in 2.0s (compile: 1974ms, render: 51ms)
+ ✓ Ready in 1123ms
+/*! 🌼 daisyUI 5.5.8 */
+ ○ Compiling / ...
+ GET / 200 in 5.6s (compile: 5.4s, render: 248ms)
