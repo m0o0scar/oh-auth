@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx tests/secret-encrypt-api.test.ts"
+    "test": "tsx tests/oauth.test.ts && tsx tests/secret-encrypt-api.test.ts"
   },
   "dependencies": {
     "next": "16.0.10",

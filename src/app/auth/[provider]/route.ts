@@ -194,12 +194,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
   const providedState = request.nextUrl.searchParams.get('state');
   const state = providedState ?? crypto.randomUUID();
-  const authUrl = buildAuthorizationUrl(
-    provider,
-    envResult.env,
-    state,
-    request,
-  );
-
-  return NextResponse.redirect(authUrl);
+  try {
+    const authUrl = buildAuthorizationUrl(
+      provider,
+      envResult.env,
+      state,
+      request,
+    );
+    return NextResponse.redirect(authUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return renderCardPage('Authorization Error', message, {
+      status: 400,
+      providerId,
+      outcome: 'failure',
+      showHomeLink: isDev,
+    });
+  }
 }

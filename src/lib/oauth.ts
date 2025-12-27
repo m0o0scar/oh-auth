@@ -8,6 +8,7 @@ type ProviderConfig = {
   authorizationUrl: string;
   tokenUrl: string;
   scope: string;
+  supportedScopes?: readonly string[];
   authParams?: Record<string, string>;
 };
 
@@ -28,6 +29,7 @@ const providerConfigs: Record<ProviderId, ProviderConfig> = {
     authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
     scope: 'openid email profile',
+    supportedScopes: ['openid', 'email', 'profile'],
     authParams: {
       access_type: 'offline',
       prompt: 'consent',
@@ -97,6 +99,22 @@ export function buildAuthorizationUrl(
   request?: NextRequest,
 ): string {
   const scope = request?.nextUrl.searchParams.get('scope') ?? provider.scope;
+
+  // If the provider has a list of supported scopes, validate the requested scope.
+  if (provider.supportedScopes) {
+    const requestedScopes = scope.split(' ');
+    const unsupportedScopes = requestedScopes.filter(
+      (s) => !provider.supportedScopes!.includes(s),
+    );
+    if (unsupportedScopes.length > 0) {
+      throw new Error(
+        `Unsupported scope(s) requested: ${unsupportedScopes.join(
+          ', ',
+        )}. Supported scopes are: ${provider.supportedScopes.join(', ')}`,
+      );
+    }
+  }
+
   const showToken = request?.nextUrl.searchParams.get('show_token');
 
   let finalState = state;
