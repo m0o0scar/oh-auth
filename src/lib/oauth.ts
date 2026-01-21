@@ -9,6 +9,7 @@ type ProviderConfig = {
   tokenUrl: string;
   scope: string;
   authParams?: Record<string, string>;
+  tokenEndpointFormat?: 'json' | 'form';
 };
 
 type ProviderEnv = {
@@ -39,6 +40,7 @@ const providerConfigs: Record<ProviderId, ProviderConfig> = {
     authorizationUrl: 'https://raindrop.io/oauth/authorize',
     tokenUrl: 'https://raindrop.io/oauth/access_token',
     scope: 'read+write',
+    tokenEndpointFormat: 'json',
   },
 };
 
@@ -144,20 +146,27 @@ export async function exchangeCodeForTokens(
   env: ProviderEnv,
   code: string,
 ): Promise<unknown> {
-  const body = new URLSearchParams({
+  const params = {
     client_id: env.clientId,
     client_secret: env.clientSecret,
     redirect_uri: env.redirectUri,
     grant_type: 'authorization_code',
     code,
-  });
+  };
+
+  const useJson = provider.tokenEndpointFormat === 'json';
+  const body = useJson
+    ? JSON.stringify(params)
+    : new URLSearchParams(params).toString();
 
   const response = await fetch(provider.tokenUrl, {
     method: 'POST',
     headers: {
-      'content-type': 'application/x-www-form-urlencoded',
+      'content-type': useJson
+        ? 'application/json'
+        : 'application/x-www-form-urlencoded',
     },
-    body: body.toString(),
+    body,
   });
 
   let json: unknown = null;
@@ -170,6 +179,51 @@ export async function exchangeCodeForTokens(
   if (!response.ok) {
     throw new Error(
       `Token exchange failed for ${provider.id}: ${
+        response.status
+      } ${JSON.stringify(json)}`,
+    );
+  }
+
+  return json;
+}
+
+export async function refreshAccessToken(
+  provider: ProviderConfig,
+  env: ProviderEnv,
+  refreshToken: string,
+): Promise<unknown> {
+  const params = {
+    client_id: env.clientId,
+    client_secret: env.clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  };
+
+  const useJson = provider.tokenEndpointFormat === 'json';
+  const body = useJson
+    ? JSON.stringify(params)
+    : new URLSearchParams(params).toString();
+
+  const response = await fetch(provider.tokenUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': useJson
+        ? 'application/json'
+        : 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+
+  let json: unknown = null;
+  try {
+    json = await response.json();
+  } catch (error) {
+    console.error('Failed to parse refresh token response', error);
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      `Token refresh failed for ${provider.id}: ${
         response.status
       } ${JSON.stringify(json)}`,
     );
