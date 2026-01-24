@@ -36,6 +36,55 @@ Visit `http://localhost:3000` to see supported providers. The "Start auth" butto
 
 The callback endpoint `/auth/{provider}/callback` exchanges the `code` for tokens, logs them to the server console, and returns a success message. If the provider returns an error or the code is missing, the route responds with a clear error payload.
 
+## API Endpoints
+
+### Initiate Authorization
+
+`GET /auth/{provider}`
+
+Starts the OAuth flow for the specified provider.
+
+**Parameters:**
+
+- `provider`: (path) The provider ID (e.g., `google`, `raindrop`).
+- `scope`: (query, optional) Additional scopes to request.
+- `show_token`: (query, optional) If `true`, the callback page will display the tokens.
+- `state`: (query, optional) A custom state string. If a JSON string is provided, it can include:
+  - `extensionId`: Chrome extension ID for messaging.
+  - `show_token`: Boolean to display tokens on the callback page.
+- `hd`: (query, optional) Hosted domain (Google only).
+
+### Callback
+
+`GET /auth/{provider}/callback`
+
+The redirect URI registered with the OAuth provider. Handles the code exchange.
+
+**Parameters:**
+
+- `provider`: (path) The provider ID.
+- `code`: (query) The authorization code returned by the provider.
+- `state`: (query) The state string passed in the initiation.
+- `error`: (query) Error message from the provider.
+
+### Refresh Token
+
+`POST /auth/{provider}/refresh`
+
+Refreshes the access token using a refresh token.
+
+**Parameters:**
+
+- `provider`: (path) The provider ID.
+
+**Body (JSON or Form Data):**
+
+- `refresh_token`: The refresh token.
+
+**Response:**
+
+JSON object containing the new tokens.
+
 ## Manual test hints
 
 - Use real OAuth credentials for both providers.
