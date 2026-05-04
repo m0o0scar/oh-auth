@@ -3,6 +3,8 @@ import { inflateRawSync } from 'node:zlib';
 const RAINDROP_API_BASE = 'https://api.raindrop.io/rest/v1';
 const BACKUP_COLLECTION_NAME = 'nenya / backup';
 const BACKUP_FILE_NAME = 'options_backup.txt';
+const SESSIONS_COLLECTION_NAME = 'nenya / sessions';
+const RAINDROP_PAGE_SIZE = 50;
 const EXCLUDED_COLLECTION_NAME = 'nenya / options';
 const EXCLUDED_RESULT_URL_PATTERNS = [
   'nenya.local',
@@ -64,6 +66,54 @@ export type BackupPinnedSearchResult = {
 
 export type RaindropPinnedResultsResponse = {
   results: BackupPinnedSearchResult[];
+};
+
+export type RaindropSession = {
+  id: number;
+  title: string;
+  href: string;
+  count: number;
+  cover?: string;
+  lastUpdate?: string;
+  lastAction?: string;
+};
+
+export type RaindropSessionsResponse = {
+  sessions: RaindropSession[];
+};
+
+export type RaindropSessionTab = {
+  id?: number;
+  url: string;
+  title: string;
+  pinned: boolean;
+  index: number;
+  groupId: number;
+  groupTitle: string;
+  groupColor: string;
+  groupCollapsed: boolean;
+};
+
+export type RaindropSessionTreeNode =
+  | ({
+      type: 'tab';
+    } & RaindropSessionTab)
+  | {
+      type: 'group';
+      id: number;
+      title: string;
+      color: string;
+      collapsed: boolean;
+      tabs: RaindropSessionTab[];
+    };
+
+export type RaindropSessionWindow = {
+  id: number;
+  tree: RaindropSessionTreeNode[];
+};
+
+export type RaindropSessionDetailsResponse = {
+  windows: RaindropSessionWindow[];
 };
 
 type SearchItemResult = RaindropSearchResponse['items'][number];
@@ -241,6 +291,254 @@ async function fetchAllCollections(accessToken: string) {
       ? childCollections.items
       : [],
   };
+}
+
+function getCollectionHref(collectionId: number) {
+  return `https://app.raindrop.io/my/${collectionId}`;
+}
+
+function getCollectionCover(cover?: string[] | string) {
+  if (Array.isArray(cover)) {
+    return cover.find((item) => typeof item === 'string' && item.trim());
+  }
+
+  return typeof cover === 'string' && cover.trim() ? cover : undefined;
+}
+
+function getSessionSortTime(session: RaindropSession) {
+  const rawTime = session.lastAction ?? session.lastUpdate;
+  if (!rawTime) {
+    return 0;
+  }
+
+  const time = new Date(rawTime).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getItemMetadata(item: RaindropItem) {
+  const sources = [item.excerpt, item.note];
+
+  for (const source of sources) {
+    if (!source) {
+      continue;
+    }
+
+    try {
+      const data = JSON.parse(source) as unknown;
+      if (data && typeof data === 'object') {
+        return data as Record<string, unknown>;
+      }
+    } catch {
+      // Ignore malformed metadata and fall back to defaults.
+    }
+  }
+
+  return {};
+}
+
+function extractItemId(item: RaindropItem) {
+  const parsed = Number(item._id);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function unwrapInternalUrl(url: string) {
+  if (!url.startsWith('https://nenya.local/tab?url=')) {
+    return url;
+  }
+
+  try {
+    const parsed = new URL(url);
+    return parsed.searchParams.get('url') || url;
+  } catch {
+    return url;
+  }
+}
+
+function readMetadataNumber(
+  metadata: Record<string, unknown>,
+  key: string,
+  fallback: number,
+) {
+  const value = metadata[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function readMetadataString(
+  metadata: Record<string, unknown>,
+  key: string,
+  fallback: string,
+) {
+  const value = metadata[key];
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+async function fetchAllRaindropsInCollection(
+  accessToken: string,
+  collectionId: number,
+) {
+  const firstPageResponse = await raindropRequest<{
+    items?: RaindropItem[];
+    count?: number;
+  }>(
+    `/raindrops/${collectionId}?perpage=${RAINDROP_PAGE_SIZE}&page=0`,
+    accessToken,
+  );
+  const items = Array.isArray(firstPageResponse.items)
+    ? [...firstPageResponse.items]
+    : [];
+
+  if (items.length < RAINDROP_PAGE_SIZE) {
+    return items;
+  }
+
+  if (typeof firstPageResponse.count === 'number') {
+    const totalPages = Math.ceil(firstPageResponse.count / RAINDROP_PAGE_SIZE);
+    const pageIndices = Array.from(
+      { length: Math.max(0, totalPages - 1) },
+      (_, index) => index + 1,
+    );
+    const chunks: number[][] = [];
+
+    for (let index = 0; index < pageIndices.length; index += 5) {
+      chunks.push(pageIndices.slice(index, index + 5));
+    }
+
+    for (const chunk of chunks) {
+      const pageItems = await Promise.all(
+        chunk.map(async (page) => {
+          const response = await raindropRequest<{ items?: RaindropItem[] }>(
+            `/raindrops/${collectionId}?perpage=${RAINDROP_PAGE_SIZE}&page=${page}`,
+            accessToken,
+          );
+          return Array.isArray(response.items) ? response.items : [];
+        }),
+      );
+      pageItems.forEach((page) => items.push(...page));
+    }
+
+    return items;
+  }
+
+  let page = 1;
+  while (true) {
+    const response = await raindropRequest<{ items?: RaindropItem[] }>(
+      `/raindrops/${collectionId}?perpage=${RAINDROP_PAGE_SIZE}&page=${page}`,
+      accessToken,
+    );
+    const pageItems = Array.isArray(response.items) ? response.items : [];
+    items.push(...pageItems);
+
+    if (pageItems.length < RAINDROP_PAGE_SIZE) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return items;
+}
+
+export async function fetchRaindropSessions(
+  accessToken: string,
+): Promise<RaindropSession[]> {
+  const { rootCollections, childCollections } =
+    await fetchAllCollections(accessToken);
+  const sessionsParent = rootCollections.find(
+    (collection) => collection.title === SESSIONS_COLLECTION_NAME,
+  );
+
+  if (!sessionsParent) {
+    return [];
+  }
+
+  return childCollections
+    .filter((collection) => collection.parent?.$id === sessionsParent._id)
+    .map((collection) => ({
+      id: collection._id,
+      title: collection.title,
+      href: getCollectionHref(collection._id),
+      count: collection.count ?? 0,
+      cover: getCollectionCover(collection.cover),
+      lastUpdate: collection.lastUpdate,
+      lastAction: collection.lastAction,
+    }))
+    .sort((first, second) => {
+      const timeDifference =
+        getSessionSortTime(second) - getSessionSortTime(first);
+      if (timeDifference !== 0) {
+        return timeDifference;
+      }
+
+      return first.title.localeCompare(second.title);
+    });
+}
+
+export async function fetchRaindropSessionDetails(
+  accessToken: string,
+  collectionId: number,
+): Promise<RaindropSessionDetailsResponse> {
+  const items = await fetchAllRaindropsInCollection(accessToken, collectionId);
+  const windowsMap = new Map<number, { id: number; items: RaindropSessionTab[] }>();
+
+  items
+    .filter((item) => item.link && item.link !== 'https://nenya.local/meta')
+    .forEach((item) => {
+      const metadata = getItemMetadata(item);
+      const windowId = readMetadataNumber(metadata, 'windowId', 0);
+      const groupId = readMetadataNumber(metadata, 'tabGroupId', -1);
+
+      if (!windowsMap.has(windowId)) {
+        windowsMap.set(windowId, { id: windowId, items: [] });
+      }
+
+      windowsMap.get(windowId)?.items.push({
+        id: extractItemId(item),
+        url: unwrapInternalUrl(item.link),
+        title: item.title || item.link,
+        pinned: metadata.pinned === true,
+        index: readMetadataNumber(metadata, 'index', 0),
+        groupId,
+        groupTitle: readMetadataString(metadata, 'groupTitle', 'Group'),
+        groupColor: readMetadataString(metadata, 'groupColor', 'grey'),
+        groupCollapsed: metadata.groupCollapsed === true,
+      });
+    });
+
+  const windows = Array.from(windowsMap.values())
+    .sort((first, second) => first.id - second.id)
+    .map((windowEntry) => {
+      windowEntry.items.sort((first, second) => first.index - second.index);
+      const tree: RaindropSessionTreeNode[] = [];
+      const processedGroups = new Set<number>();
+
+      windowEntry.items.forEach((tab) => {
+        if (tab.groupId >= 0) {
+          if (processedGroups.has(tab.groupId)) {
+            return;
+          }
+
+          const tabs = windowEntry.items.filter(
+            (candidate) => candidate.groupId === tab.groupId,
+          );
+          tree.push({
+            type: 'group',
+            id: tab.groupId,
+            title: tab.groupTitle || 'Group',
+            color: tab.groupColor || 'grey',
+            collapsed: tab.groupCollapsed,
+            tabs,
+          });
+          processedGroups.add(tab.groupId);
+          return;
+        }
+
+        tree.push({ type: 'tab', ...tab });
+      });
+
+      return { id: windowEntry.id, tree };
+    });
+
+  return { windows };
 }
 
 function extractZipEntryText(

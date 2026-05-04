@@ -16,6 +16,11 @@ import { Nunito } from 'next/font/google';
 import type {
   RaindropPinnedResultsResponse,
   RaindropSearchResponse,
+  RaindropSessionDetailsResponse,
+  RaindropSessionTab,
+  RaindropSessionTreeNode,
+  RaindropSessionWindow,
+  RaindropSessionsResponse,
 } from '@/lib/raindrop-api';
 import {
   clearStoredRaindropTokens,
@@ -347,7 +352,320 @@ function PinnedResults({
   return (
     <div className={styles.pinnedSection}>
       {content}
-      {results.length > 0 && (loading || error) ? (
+      {results.length > 0 && error ? (
+        <div className="mt-3 rounded-2xl border border-error/20 bg-error/5 px-3 py-2 text-xs text-error">
+          {error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function getSessionSubtitle(session: RaindropSessionsResponse['sessions'][number]) {
+  const timestamp = session.lastAction ?? session.lastUpdate;
+  if (!timestamp) {
+    return 'Last activity unknown';
+  }
+
+  const formatted = formatTimestamp(timestamp);
+  return formatted === 'Unknown'
+    ? 'Last activity unknown'
+    : `Last synced ${formatted}`;
+}
+
+function getTabGroupColorStyle(color: string): CSSProperties {
+  const colors: Record<string, string> = {
+    grey: '#9ca3af',
+    blue: '#3b82f6',
+    red: '#ef4444',
+    yellow: '#eab308',
+    green: '#22c55e',
+    pink: '#ec4899',
+    purple: '#a855f7',
+    cyan: '#06b6d4',
+    orange: '#f97316',
+  };
+
+  return {
+    '--session-group-color': colors[color] ?? colors.grey,
+  } as CSSProperties;
+}
+
+function CollectionFallbackIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </svg>
+  );
+}
+
+function SessionCollectionIcon({
+  cover,
+  title,
+}: {
+  cover?: string;
+  title: string;
+}) {
+  if (cover) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={cover}
+        alt=""
+        className={styles.sessionCover}
+        aria-hidden="true"
+        title={title}
+      />
+    );
+  }
+
+  return <CollectionFallbackIcon />;
+}
+
+function SessionTabRow({
+  tab,
+}: {
+  tab: RaindropSessionTab | Extract<RaindropSessionTreeNode, { type: 'tab' }>;
+}) {
+  return (
+    <a href={tab.url} rel="noreferrer" className={styles.sessionTabRow}>
+      <span className={styles.sessionTabFavicon} aria-hidden="true" />
+      <span className={styles.sessionTabTitle}>
+        {tab.title || 'Untitled'}
+      </span>
+    </a>
+  );
+}
+
+function SessionGroupNode({
+  group,
+}: {
+  group: Extract<RaindropSessionTreeNode, { type: 'group' }>;
+}) {
+  return (
+    <div className={styles.sessionGroupNode}>
+      <div
+        className={styles.sessionGroupHeader}
+        style={getTabGroupColorStyle(group.color)}
+      >
+        <span className={styles.sessionGroupColor} aria-hidden="true" />
+        <span className={styles.sessionGroupTitle}>{group.title || 'Group'}</span>
+      </div>
+      <div className={styles.sessionGroupTabs}>
+        {group.tabs.map((tab) => (
+          <SessionTabRow key={`${tab.id ?? tab.url}-${tab.index}`} tab={tab} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SessionWindowTree({
+  windowEntry,
+  index,
+}: {
+  windowEntry: RaindropSessionWindow;
+  index: number;
+}) {
+  return (
+    <div className={styles.sessionWindow}>
+      <div className={styles.sessionWindowHeader}>Window {index + 1}</div>
+      <div className={styles.sessionWindowTree}>
+        {windowEntry.tree.map((node) =>
+          node.type === 'group' ? (
+            <SessionGroupNode key={`group-${node.id}`} group={node} />
+          ) : (
+            <SessionTabRow key={`tab-${node.id ?? node.url}`} tab={node} />
+          ),
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SessionDetails({
+  details,
+  loading,
+  error,
+}: {
+  details?: RaindropSessionDetailsResponse;
+  loading: boolean;
+  error?: string | null;
+}) {
+  if (loading && !details) {
+    return (
+      <div className={styles.sessionDetailsState}>
+        <span className="loading loading-spinner loading-xs" />
+        Loading tabs...
+      </div>
+    );
+  }
+
+  if (error && !details) {
+    return (
+      <div className={`${styles.sessionDetailsState} ${styles.sessionDetailsError}`}>
+        {error}
+      </div>
+    );
+  }
+
+  const windows = Array.isArray(details?.windows) ? details.windows : [];
+  if (windows.length === 0) {
+    return (
+      <div className={styles.sessionDetailsState}>
+        No open tabs in this session.
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.sessionDetails}>
+      {windows.map((windowEntry, index) => (
+        <SessionWindowTree
+          key={windowEntry.id}
+          windowEntry={windowEntry}
+          index={index}
+        />
+      ))}
+      {loading || error ? (
+        <div
+          className={`${styles.sessionDetailsState} ${
+            error ? styles.sessionDetailsError : ''
+          }`}
+        >
+          {error ? error : 'Refreshing tabs...'}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SessionsList({
+  sessions,
+  loading,
+  error,
+  expandedSessionIds,
+  detailsById,
+  detailsLoadingById,
+  detailsErrorById,
+  onToggleSession,
+}: {
+  sessions: RaindropSessionsResponse['sessions'];
+  loading: boolean;
+  error: string | null;
+  expandedSessionIds: Set<number>;
+  detailsById: Record<string, RaindropSessionDetailsResponse | undefined>;
+  detailsLoadingById: Record<string, boolean | undefined>;
+  detailsErrorById: Record<string, string | null | undefined>;
+  onToggleSession: (sessionId: number) => void;
+}) {
+  let content: ReactNode;
+
+  if (loading && sessions.length === 0) {
+    content = (
+      <div className="flex items-center justify-center gap-3 rounded-2xl border border-base-300/80 px-4 py-7 text-sm text-base-content/70">
+        <span className="loading loading-spinner loading-sm" />
+        Loading sessions...
+      </div>
+    );
+  } else if (error && sessions.length === 0) {
+    content = (
+      <div className="rounded-2xl border border-error/20 bg-error/5 px-4 py-6 text-sm text-error">
+        {error}
+      </div>
+    );
+  } else if (sessions.length === 0) {
+    content = (
+      <div className="rounded-2xl border border-dashed border-base-300/80 px-4 py-7 text-center text-sm text-base-content/60">
+        No synced browser sessions found in Raindrop.
+      </div>
+    );
+  } else {
+    content = (
+      <div className={styles.sessionsList}>
+        {sessions.map((session) => {
+          const expanded = expandedSessionIds.has(session.id);
+          const sessionKey = String(session.id);
+
+          return (
+            <div key={session.id} className={styles.sessionItem}>
+              <button
+                type="button"
+                className={styles.sessionCard}
+                title={session.title}
+                aria-expanded={expanded}
+                aria-controls={`session-details-${session.id}`}
+                onClick={() => onToggleSession(session.id)}
+              >
+                <span className={styles.sessionIcon} aria-hidden="true">
+                  <SessionCollectionIcon
+                    cover={session.cover}
+                    title={session.title}
+                  />
+                </span>
+                <span className={styles.sessionBody}>
+                  <span className={styles.sessionTitle}>{session.title}</span>
+                  <span className={styles.sessionSubtitle}>
+                    {getSessionSubtitle(session)}
+                  </span>
+                </span>
+                <span
+                  className={`${styles.sessionChevron} ${
+                    expanded ? styles.sessionChevronExpanded : ''
+                  }`}
+                  aria-hidden="true"
+                >
+                  ▾
+                </span>
+              </button>
+              <a
+                href={session.href}
+                rel="noreferrer"
+                className={styles.sessionOpenLink}
+                aria-label={`Open ${session.title} in Raindrop`}
+                title="Open collection in Raindrop"
+              >
+                ↗
+              </a>
+              {expanded ? (
+                <div
+                  id={`session-details-${session.id}`}
+                  className={styles.sessionDetailsWrap}
+                >
+                  <SessionDetails
+                    details={detailsById[sessionKey]}
+                    loading={Boolean(detailsLoadingById[sessionKey])}
+                    error={detailsErrorById[sessionKey]}
+                  />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <section className={styles.sessionsSection} aria-labelledby="sessions-heading">
+      <div className={styles.sectionHeader}>
+        <h2 id="sessions-heading" className={styles.sectionTitle}>
+          Sessions
+        </h2>
+      </div>
+      {content}
+      {sessions.length > 0 && (loading || error) ? (
         <div
           className={`mt-3 rounded-2xl px-3 py-2 text-xs ${
             error
@@ -355,10 +673,10 @@ function PinnedResults({
               : 'border border-base-300/80 bg-base-100/70 text-base-content/55'
           }`}
         >
-          {error ? error : 'Refreshing pinned results...'}
+          {error ? error : 'Refreshing sessions...'}
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
 
@@ -381,6 +699,23 @@ export default function RaindropPage() {
   const [pinnedResultsError, setPinnedResultsError] = useState<string | null>(
     null,
   );
+  const [sessions, setSessions] = useState<RaindropSessionsResponse['sessions']>(
+    [],
+  );
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [expandedSessionIds, setExpandedSessionIds] = useState<Set<number>>(
+    () => new Set(),
+  );
+  const [sessionDetailsById, setSessionDetailsById] = useState<
+    Record<string, RaindropSessionDetailsResponse | undefined>
+  >({});
+  const [sessionDetailsLoadingById, setSessionDetailsLoadingById] = useState<
+    Record<string, boolean | undefined>
+  >({});
+  const [sessionDetailsErrorById, setSessionDetailsErrorById] = useState<
+    Record<string, string | null | undefined>
+  >({});
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResultRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -446,6 +781,96 @@ export default function RaindropPage() {
     }
   }
 
+  async function loadSessions() {
+    setSessionsLoading(true);
+    setSessionsError(null);
+
+    try {
+      const nextTokens = await resolveTokens();
+      if (!nextTokens) {
+        return;
+      }
+
+      const response = await fetchRaindropJson<RaindropSessionsResponse>(
+        '/api/raindrop/sessions',
+        nextTokens,
+      );
+      setSessions(response.sessions);
+      setExpandedSessionIds((current) => {
+        const validIds = new Set(response.sessions.map((session) => session.id));
+        return new Set(Array.from(current).filter((id) => validIds.has(id)));
+      });
+    } catch (error) {
+      setSessionsError(
+        error instanceof Error ? error.message : 'Failed to load sessions',
+      );
+    } finally {
+      setSessionsLoading(false);
+    }
+  }
+
+  async function loadSessionDetails(sessionId: number) {
+    const sessionKey = String(sessionId);
+    setSessionDetailsLoadingById((current) => ({
+      ...current,
+      [sessionKey]: true,
+    }));
+    setSessionDetailsErrorById((current) => ({
+      ...current,
+      [sessionKey]: null,
+    }));
+
+    try {
+      const nextTokens = await resolveTokens();
+      if (!nextTokens) {
+        return;
+      }
+
+      const details = await fetchRaindropJson<RaindropSessionDetailsResponse>(
+        `/api/raindrop/sessions/${sessionId}`,
+        nextTokens,
+      );
+      setSessionDetailsById((current) => ({
+        ...current,
+        [sessionKey]: details,
+      }));
+    } catch (error) {
+      setSessionDetailsErrorById((current) => ({
+        ...current,
+        [sessionKey]:
+          error instanceof Error ? error.message : 'Failed to load session tabs',
+      }));
+    } finally {
+      setSessionDetailsLoadingById((current) => ({
+        ...current,
+        [sessionKey]: false,
+      }));
+    }
+  }
+
+  function handleToggleSession(sessionId: number) {
+    const sessionKey = String(sessionId);
+    const isExpanded = expandedSessionIds.has(sessionId);
+
+    setExpandedSessionIds((current) => {
+      const next = new Set(current);
+      if (isExpanded) {
+        next.delete(sessionId);
+      } else {
+        next.add(sessionId);
+      }
+      return next;
+    });
+
+    if (
+      !isExpanded &&
+      !sessionDetailsById[sessionKey] &&
+      !sessionDetailsLoadingById[sessionKey]
+    ) {
+      void loadSessionDetails(sessionId);
+    }
+  }
+
   function handleReconnect() {
     clearStoredRaindropTokens();
     clearRaindropWorkspaceCache();
@@ -461,6 +886,13 @@ export default function RaindropPage() {
     setPinnedResults([]);
     setPinnedResultsLoading(false);
     setPinnedResultsError(null);
+    setSessions([]);
+    setSessionsLoading(false);
+    setSessionsError(null);
+    setExpandedSessionIds(new Set());
+    setSessionDetailsById({});
+    setSessionDetailsLoadingById({});
+    setSessionDetailsErrorById({});
     window.location.replace('/');
   }
 
@@ -563,7 +995,8 @@ export default function RaindropPage() {
     }
 
     void loadPinnedResults();
-    // Trigger pinned result loading whenever we reach a ready authenticated state.
+    void loadSessions();
+    // Trigger workspace loading whenever we reach a ready authenticated state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authState, tokens]);
 
@@ -750,7 +1183,7 @@ export default function RaindropPage() {
                   void (async () => {
                     const nextTokens = await resolveTokens();
                     if (nextTokens) {
-                      await loadPinnedResults();
+                      await Promise.all([loadPinnedResults(), loadSessions()]);
                     }
                   })();
                 }}
@@ -881,11 +1314,23 @@ export default function RaindropPage() {
                     />
                   </div>
                 ) : (
-                  <PinnedResults
-                    results={pinnedResults}
-                    loading={pinnedResultsLoading}
-                    error={pinnedResultsError}
-                  />
+                  <div className={styles.workspaceSections}>
+                    <PinnedResults
+                      results={pinnedResults}
+                      loading={pinnedResultsLoading}
+                      error={pinnedResultsError}
+                    />
+                    <SessionsList
+                      sessions={sessions}
+                      loading={sessionsLoading}
+                      error={sessionsError}
+                      expandedSessionIds={expandedSessionIds}
+                      detailsById={sessionDetailsById}
+                      detailsLoadingById={sessionDetailsLoadingById}
+                      detailsErrorById={sessionDetailsErrorById}
+                      onToggleSession={handleToggleSession}
+                    />
+                  </div>
                 )}
               </div>
             </article>
