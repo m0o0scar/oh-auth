@@ -15,6 +15,17 @@ describe('buildBookmarkSearchSubmitHref', () => {
     );
   });
 
+  it('returns an absolute http or https URL directly', () => {
+    assert.equal(
+      buildBookmarkSearchSubmitHref('https://example.com/docs?q=next%20auth'),
+      'https://example.com/docs?q=next%20auth',
+    );
+    assert.equal(
+      buildBookmarkSearchSubmitHref('  http://example.com/path#section  '),
+      'http://example.com/path#section',
+    );
+  });
+
   it('builds a Google AI mode search URL with the /gai prefix', () => {
     assert.equal(
       buildBookmarkSearchSubmitHref('/gai next auth callbacks'),
