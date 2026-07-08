@@ -297,6 +297,23 @@ function getCollectionHref(collectionId: number) {
   return `https://app.raindrop.io/my/${collectionId}`;
 }
 
+function isBackupFileItem(item: RaindropItem) {
+  return (
+    item.title === BACKUP_FILE_NAME ||
+    item.file?.name === BACKUP_FILE_NAME ||
+    (item.type === 'link' && item.link.endsWith(BACKUP_FILE_NAME))
+  );
+}
+
+function shouldSendRaindropAuthHeader(url: string) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === 'api.raindrop.io' || hostname === 'up.raindrop.io';
+  } catch {
+    return false;
+  }
+}
+
 function getCollectionCover(cover?: string[] | string) {
   if (Array.isArray(cover)) {
     return cover.find((item) => typeof item === 'string' && item.trim());
@@ -604,7 +621,9 @@ function extractZipEntryText(
     const fileNameEnd = fileNameStart + fileNameLength;
     const fileName = decoder.decode(archive.subarray(fileNameStart, fileNameEnd));
 
-    if (fileName === targetFileName) {
+    const fileBaseName = fileName.split('/').pop() ?? fileName;
+
+    if (fileName === targetFileName || fileBaseName === targetFileName) {
       if (localHeaderOffset + 30 > archive.length) {
         return null;
       }
@@ -644,18 +663,51 @@ function extractZipEntryText(
   return null;
 }
 
-async function fetchBackupPayload(accessToken: string): Promise<unknown | null> {
-  const { rootCollections } = await fetchAllCollections(accessToken);
-  const backupCollection = rootCollections.find(
-    (collection) => collection.title === BACKUP_COLLECTION_NAME,
-  );
+async function fetchBackupFileItemPayload(
+  accessToken: string,
+  collectionId: number,
+): Promise<unknown | null> {
+  const items = await fetchAllRaindropsInCollection(accessToken, collectionId);
+  const fileItem = items.find(isBackupFileItem);
 
-  if (!backupCollection) {
+  if (!fileItem) {
     return null;
   }
 
+  const downloadUrl = fileItem.file?.link || fileItem.link;
+  if (!downloadUrl) {
+    return null;
+  }
+
+  const headers = new Headers({
+    accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
+  });
+  if (shouldSendRaindropAuthHeader(downloadUrl)) {
+    headers.set('authorization', `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(downloadUrl, {
+    cache: 'no-store',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to download Raindrop backup file');
+  }
+
+  try {
+    return JSON.parse(await response.text()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchBackupExportPayload(
+  accessToken: string,
+  collectionId: number,
+): Promise<unknown | null> {
   const response = await fetch(
-    `${RAINDROP_API_BASE}/raindrops/${backupCollection._id}/export.zip`,
+    `${RAINDROP_API_BASE}/raindrops/${collectionId}/export.zip`,
     {
       cache: 'no-store',
       headers: {
@@ -679,6 +731,22 @@ async function fetchBackupPayload(accessToken: string): Promise<unknown | null> 
   } catch {
     return null;
   }
+}
+
+async function fetchBackupPayload(accessToken: string): Promise<unknown | null> {
+  const { rootCollections } = await fetchAllCollections(accessToken);
+  const backupCollection = rootCollections.find(
+    (collection) => collection.title === BACKUP_COLLECTION_NAME,
+  );
+
+  if (!backupCollection) {
+    return null;
+  }
+
+  return (
+    (await fetchBackupFileItemPayload(accessToken, backupCollection._id)) ??
+    (await fetchBackupExportPayload(accessToken, backupCollection._id))
+  );
 }
 
 export async function fetchBackupPinnedSearchResults(

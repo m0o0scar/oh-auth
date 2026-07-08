@@ -15,6 +15,15 @@ function createJsonResponse(data: unknown, init?: Partial<Response>) {
   } as Response;
 }
 
+function createTextResponse(text: string, init?: Partial<Response>) {
+  return {
+    ok: init?.ok ?? true,
+    status: init?.status ?? 200,
+    statusText: init?.statusText ?? 'OK',
+    text: async () => text,
+  } as Response;
+}
+
 function createZipResponse(entries: Record<string, string>) {
   const archive = createStoredZip(entries, { useDataDescriptor: true });
   return {
@@ -172,8 +181,8 @@ describe('extractBackupPinnedSearchResults', () => {
 });
 
 describe('fetchBackupPinnedSearchResults', () => {
-  it('returns normalized results from the Raindrop backup file', async () => {
-    let exportAuthHeader = '';
+  it('returns normalized results from the uploaded Raindrop backup file item', async () => {
+    let downloadAuthHeader = '';
 
     globalThis.fetch = async (input, init) => {
       const url = String(input);
@@ -188,27 +197,41 @@ describe('fetchBackupPinnedSearchResults', () => {
         return createJsonResponse({ items: [] });
       }
 
-      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7/export.zip') {
-        const headers = new Headers(init?.headers);
-        exportAuthHeader = headers.get('authorization') ?? '';
-        return createZipResponse({
-          'options_backup.txt': JSON.stringify({
-            pinnedSearchResults: [
-              { title: 'One', url: 'https://example.com/1', type: 'raindrop' },
-              {
-                title: 'Two',
-                url: 'https://example.com/2',
-                type: 'raindrop-collection',
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7?perpage=50&page=0') {
+        return createJsonResponse({
+          items: [
+            {
+              _id: 8,
+              title: 'options_backup.txt',
+              link: 'https://up.raindrop.io/options_backup.txt',
+              file: {
+                name: 'options_backup.txt',
+                link: 'https://up.raindrop.io/options_backup.txt',
               },
-              {
-                title: 'Projects',
-                url: 'https://www.notion.so/acme/Projects-123',
-                type: 'notion-page',
-              },
-              { title: 'Ignored', url: 'https://example.com/3', type: 'other' },
-            ],
-          }),
+            },
+          ],
         });
+      }
+
+      if (url === 'https://up.raindrop.io/options_backup.txt') {
+        const headers = new Headers(init?.headers);
+        downloadAuthHeader = headers.get('authorization') ?? '';
+        return createTextResponse(JSON.stringify({
+          pinnedSearchResults: [
+            { title: 'One', url: 'https://example.com/1', type: 'raindrop' },
+            {
+              title: 'Two',
+              url: 'https://example.com/2',
+              type: 'raindrop-collection',
+            },
+            {
+              title: 'Projects',
+              url: 'https://www.notion.so/acme/Projects-123',
+              type: 'notion-page',
+            },
+            { title: 'Ignored', url: 'https://example.com/3', type: 'other' },
+          ],
+        }));
       }
 
       throw new Error(`Unexpected fetch: ${url}`);
@@ -228,6 +251,49 @@ describe('fetchBackupPinnedSearchResults', () => {
         url: 'https://www.notion.so/acme/Projects-123',
         type: 'notion-page',
       },
+    ]);
+    assert.equal(downloadAuthHeader, 'Bearer token');
+  });
+
+  it('falls back to the collection export zip when no file item is listed', async () => {
+    let exportAuthHeader = '';
+
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+
+      if (url === 'https://api.raindrop.io/rest/v1/collections') {
+        return createJsonResponse({
+          items: [{ _id: 7, title: 'nenya / backup' }],
+        });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/collections/childrens') {
+        return createJsonResponse({ items: [] });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7?perpage=50&page=0') {
+        return createJsonResponse({ items: [] });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7/export.zip') {
+        const headers = new Headers(init?.headers);
+        exportAuthHeader = headers.get('authorization') ?? '';
+        return createZipResponse({
+          'nested/options_backup.txt': JSON.stringify({
+            pinnedSearchResults: [
+              { title: 'One', url: 'https://example.com/1', type: 'raindrop' },
+            ],
+          }),
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    const results = await fetchBackupPinnedSearchResults('token');
+
+    assert.deepEqual(results, [
+      { title: 'One', url: 'https://example.com/1', type: 'raindrop' },
     ]);
     assert.equal(exportAuthHeader, 'Bearer token');
   });
@@ -265,6 +331,10 @@ describe('fetchBackupPinnedSearchResults', () => {
         return createJsonResponse({ items: [] });
       }
 
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7?perpage=50&page=0') {
+        return createJsonResponse({ items: [] });
+      }
+
       if (url === 'https://api.raindrop.io/rest/v1/raindrops/7/export.zip') {
         return createZipResponse({
           'export.txt': 'https://example.com/other.txt',
@@ -289,6 +359,10 @@ describe('fetchBackupPinnedSearchResults', () => {
       }
 
       if (url === 'https://api.raindrop.io/rest/v1/collections/childrens') {
+        return createJsonResponse({ items: [] });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7?perpage=50&page=0') {
         return createJsonResponse({ items: [] });
       }
 
