@@ -68,6 +68,22 @@ export type RaindropPinnedResultsResponse = {
   results: BackupPinnedSearchResult[];
 };
 
+type BackupPayloadDebugInfo = {
+  backupCollectionFound: boolean;
+  backupCollectionId?: number;
+  backupFileItemFound?: boolean;
+  backupFileDownloadUrlHost?: string;
+  filePayloadParsed?: boolean;
+  exportPayloadParsed?: boolean;
+  payloadKeys?: string[];
+  resultCount?: number;
+};
+
+export type RaindropPinnedResultsDebugResponse =
+  RaindropPinnedResultsResponse & {
+    debug: BackupPayloadDebugInfo;
+  };
+
 export type RaindropSession = {
   id: number;
   title: string;
@@ -174,9 +190,16 @@ export function extractBackupPinnedSearchResults(
     return [];
   }
 
-  return normalizeBackupPinnedSearchResults(
-    (payload as Record<string, unknown>).pinnedSearchResults,
+  const record = payload as Record<string, unknown>;
+  const pinnedSearchResults = normalizeBackupPinnedSearchResults(
+    record.pinnedSearchResults,
   );
+
+  if (pinnedSearchResults.length > 0) {
+    return pinnedSearchResults;
+  }
+
+  return normalizeBackupPinnedSearchResults(record.pinnedItems);
 }
 
 export function dedupeRaindropSearchItems(items: SearchItemResult[]) {
@@ -305,13 +328,17 @@ function isBackupFileItem(item: RaindropItem) {
   );
 }
 
-function shouldSendRaindropAuthHeader(url: string) {
+function getUrlHost(url: string) {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return hostname === 'api.raindrop.io' || hostname === 'up.raindrop.io';
+    return new URL(url).hostname.toLowerCase();
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+function shouldSendRaindropAuthHeader(url: string) {
+  const hostname = getUrlHost(url);
+  return hostname === 'api.raindrop.io' || hostname === 'up.raindrop.io';
 }
 
 function getCollectionCover(cover?: string[] | string) {
@@ -666,9 +693,13 @@ function extractZipEntryText(
 async function fetchBackupFileItemPayload(
   accessToken: string,
   collectionId: number,
+  debug?: BackupPayloadDebugInfo,
 ): Promise<unknown | null> {
   const items = await fetchAllRaindropsInCollection(accessToken, collectionId);
   const fileItem = items.find(isBackupFileItem);
+  if (debug) {
+    debug.backupFileItemFound = Boolean(fileItem);
+  }
 
   if (!fileItem) {
     return null;
@@ -677,6 +708,9 @@ async function fetchBackupFileItemPayload(
   const downloadUrl = fileItem.file?.link || fileItem.link;
   if (!downloadUrl) {
     return null;
+  }
+  if (debug) {
+    debug.backupFileDownloadUrlHost = getUrlHost(downloadUrl);
   }
 
   const headers = new Headers({
@@ -696,8 +730,15 @@ async function fetchBackupFileItemPayload(
   }
 
   try {
-    return JSON.parse(await response.text()) as unknown;
+    const payload = JSON.parse(await response.text()) as unknown;
+    if (debug) {
+      debug.filePayloadParsed = true;
+    }
+    return payload;
   } catch {
+    if (debug) {
+      debug.filePayloadParsed = false;
+    }
     return null;
   }
 }
@@ -705,6 +746,7 @@ async function fetchBackupFileItemPayload(
 async function fetchBackupExportPayload(
   accessToken: string,
   collectionId: number,
+  debug?: BackupPayloadDebugInfo,
 ): Promise<unknown | null> {
   const response = await fetch(
     `${RAINDROP_API_BASE}/raindrops/${collectionId}/export.zip`,
@@ -727,25 +769,39 @@ async function fetchBackupExportPayload(
   }
 
   try {
-    return JSON.parse(payloadText) as unknown;
+    const payload = JSON.parse(payloadText) as unknown;
+    if (debug) {
+      debug.exportPayloadParsed = true;
+    }
+    return payload;
   } catch {
+    if (debug) {
+      debug.exportPayloadParsed = false;
+    }
     return null;
   }
 }
 
-async function fetchBackupPayload(accessToken: string): Promise<unknown | null> {
-  const { rootCollections } = await fetchAllCollections(accessToken);
-  const backupCollection = rootCollections.find(
+async function fetchBackupPayload(
+  accessToken: string,
+  debug?: BackupPayloadDebugInfo,
+): Promise<unknown | null> {
+  const { rootCollections, childCollections } = await fetchAllCollections(accessToken);
+  const backupCollection = [...rootCollections, ...childCollections].find(
     (collection) => collection.title === BACKUP_COLLECTION_NAME,
   );
+  if (debug) {
+    debug.backupCollectionFound = Boolean(backupCollection);
+    debug.backupCollectionId = backupCollection?._id;
+  }
 
   if (!backupCollection) {
     return null;
   }
 
   return (
-    (await fetchBackupFileItemPayload(accessToken, backupCollection._id)) ??
-    (await fetchBackupExportPayload(accessToken, backupCollection._id))
+    (await fetchBackupFileItemPayload(accessToken, backupCollection._id, debug)) ??
+    (await fetchBackupExportPayload(accessToken, backupCollection._id, debug))
   );
 }
 
@@ -754,6 +810,24 @@ export async function fetchBackupPinnedSearchResults(
 ): Promise<BackupPinnedSearchResult[]> {
   const payload = await fetchBackupPayload(accessToken);
   return extractBackupPinnedSearchResults(payload);
+}
+
+export async function fetchBackupPinnedSearchResultsWithDebug(
+  accessToken: string,
+): Promise<RaindropPinnedResultsDebugResponse> {
+  const debug: BackupPayloadDebugInfo = {
+    backupCollectionFound: false,
+  };
+  const payload = await fetchBackupPayload(accessToken, debug);
+
+  if (payload && typeof payload === 'object') {
+    debug.payloadKeys = Object.keys(payload as Record<string, unknown>).sort();
+  }
+
+  const results = extractBackupPinnedSearchResults(payload);
+  debug.resultCount = results.length;
+
+  return { results, debug };
 }
 
 export async function searchRaindropWorkspace(

@@ -178,6 +178,23 @@ describe('extractBackupPinnedSearchResults', () => {
       [],
     );
   });
+
+  it('falls back to legacy pinnedItems when pinnedSearchResults is absent', () => {
+    assert.deepEqual(
+      extractBackupPinnedSearchResults({
+        pinnedItems: [
+          { title: 'Legacy', url: 'https://example.com/legacy', type: 'raindrop' },
+        ],
+      }),
+      [
+        {
+          title: 'Legacy',
+          url: 'https://example.com/legacy',
+          type: 'raindrop',
+        },
+      ],
+    );
+  });
 });
 
 describe('fetchBackupPinnedSearchResults', () => {
@@ -296,6 +313,50 @@ describe('fetchBackupPinnedSearchResults', () => {
       { title: 'One', url: 'https://example.com/1', type: 'raindrop' },
     ]);
     assert.equal(exportAuthHeader, 'Bearer token');
+  });
+
+  it('finds the backup collection when Raindrop returns it as a child collection', async () => {
+    globalThis.fetch = async (input) => {
+      const url = String(input);
+
+      if (url === 'https://api.raindrop.io/rest/v1/collections') {
+        return createJsonResponse({ items: [] });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/collections/childrens') {
+        return createJsonResponse({
+          items: [{ _id: 7, title: 'nenya / backup' }],
+        });
+      }
+
+      if (url === 'https://api.raindrop.io/rest/v1/raindrops/7?perpage=50&page=0') {
+        return createJsonResponse({
+          items: [
+            {
+              _id: 8,
+              title: 'options_backup.txt',
+              link: 'https://example.com/options_backup.txt',
+            },
+          ],
+        });
+      }
+
+      if (url === 'https://example.com/options_backup.txt') {
+        return createTextResponse(JSON.stringify({
+          pinnedSearchResults: [
+            { title: 'Child', url: 'https://example.com/child', type: 'raindrop' },
+          ],
+        }));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    const results = await fetchBackupPinnedSearchResults('token');
+
+    assert.deepEqual(results, [
+      { title: 'Child', url: 'https://example.com/child', type: 'raindrop' },
+    ]);
   });
 
   it('returns an empty list when the backup collection is missing', async () => {
