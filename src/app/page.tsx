@@ -70,12 +70,20 @@ export default function Home() {
                       </Link>
                     ) : null}
                     {provider.id === 'google' ? (
-                      <Link
-                        className="btn btn-secondary"
-                        href="/auth/google?scope=https://www.googleapis.com/auth/calendar&show_token=true"
-                      >
-                        Test Calendar Scope
-                      </Link>
+                      <>
+                        <Link
+                          className="btn btn-secondary"
+                          href="/auth/google?scope=https://www.googleapis.com/auth/calendar&show_token=true"
+                        >
+                          Test Calendar Scope
+                        </Link>
+                        <Link
+                          className="btn btn-secondary"
+                          href="/auth/google?scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fphotoslibrary.appendonly&show_token=true"
+                        >
+                          Test Google Photos
+                        </Link>
+                      </>
                     ) : null}
                   </div>
                   <a
