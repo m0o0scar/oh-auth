@@ -398,7 +398,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
         if (script) {
           return renderCardPage(
             'Authentication complete',
-            'Authentication complete. Redirecting back to the Raindrop workspace.',
+            'Authentication complete. Redirecting back to the workspace.',
             { script, providerId, outcome: 'success' },
           );
         }
