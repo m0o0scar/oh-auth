@@ -43,7 +43,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'Oh, auth!',
   description:
-    'Minimal Next.js app to start OAuth2 flows for Google and Raindrop, redirect to provider authorization pages, and log received tokens on callback.',
+    'Minimal Next.js app to start OAuth2 flows for Google, redirect to provider authorization pages, and log received tokens on callback.',
   icons: {
     icon: [
       {

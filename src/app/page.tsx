@@ -64,11 +64,6 @@ export default function Home() {
                     >
                       Start auth
                     </Link>
-                    {provider.id === 'raindrop' ? (
-                      <Link className="btn btn-outline" href="/raindrop">
-                        Enter workspace
-                      </Link>
-                    ) : null}
                     {provider.id === 'google' ? (
                       <>
                         <Link
