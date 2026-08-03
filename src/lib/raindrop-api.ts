@@ -853,7 +853,7 @@ export async function searchRaindropWorkspace(
   const searchTerms = query
     .toLowerCase()
     .split(/\s+/)
-    .map((term) => term.trim())
+    .map((term) => term.trim().replace(/^#/, ''))
     .filter(Boolean);
 
   const excludedCollectionIds = new Set(
