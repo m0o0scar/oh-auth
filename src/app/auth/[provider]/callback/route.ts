@@ -437,11 +437,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
         })};
         const extensionId = ${JSON.stringify(extensionId)};
         const statusEl = document.getElementById('status');
+        // postMessage lets the extension's own content script pick this up
+        // even on browsers (e.g. Firefox) that don't support delivering
+        // chrome.runtime.sendMessage(extensionId, ...) from a plain web page.
+        window.postMessage(payload, window.location.origin);
         if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
-          if (statusEl) statusEl.textContent = 'Chrome runtime not available. Please ensure the extension is installed and this page was opened from it.';
+          if (statusEl) statusEl.textContent = 'You can close this page now.';
           return;
         }
-        chrome.runtime.sendMessage(extensionId, payload, {});
+        try {
+          chrome.runtime.sendMessage(extensionId, payload, {});
+        } catch (err) {
+          // Ignored: the postMessage above already covers this case.
+        }
       })();
     `;
 
